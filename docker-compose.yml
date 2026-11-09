@@ -1,0 +1,65 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: ghc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ghc_dev_password}
+      POSTGRES_DB: ghc
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ghc -d ghc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis_data:/data]
+    ports: ["6379:6379"]
+
+  api:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    environment:
+      GHC_DATABASE_URL: postgresql+psycopg://ghc:${POSTGRES_PASSWORD:-ghc_dev_password}@db:5432/ghc
+      GHC_REDIS_URL: redis://redis:6379/0
+      GHC_ENV: ${GHC_ENV:-prod}
+      GHC_X_BEARER_TOKEN: ${GHC_X_BEARER_TOKEN:-}
+      GHC_CORS_ORIGINS: ${GHC_CORS_ORIGINS:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8000:8000"]
+
+  web:
+    build:
+      context: ./web
+    environment:
+      API_URL: http://api:8000
+      NEXT_PUBLIC_API_URL: /api/backend
+    depends_on: [api]
+    ports: ["3000:3000"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes: [grafana_data:/var/lib/grafana]
+    ports: ["3001:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  db_data:
+  redis_data:
+  grafana_data:
