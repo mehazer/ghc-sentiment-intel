@@ -30,6 +30,23 @@ tells you what to do at each threshold level.
                                     └──────────────┘            └──────────────┘
 ```
 
+## Data coverage today
+
+The diagram above describes the target pipeline, not the current one. What is
+actually running:
+
+| Source | Connector | State |
+|---|---|---|
+| Binance market metrics | `ingestion/binance.py` | Implemented and scheduled (`ingestion/scheduler.py`) |
+| RSS news (CoinDesk, CoinTelegraph, Decrypt) | `ingestion/rss.py` | Implemented, not scheduled; requires the scheduler to call it |
+| X / Twitter | `ingestion/x.py` | Implemented, needs `GHC_X_BEARER_TOKEN` (paid API), not scheduled |
+| Reddit, Telegram, Discord, on-chain | — | Not implemented; see `docs/roadmap.md` |
+
+Consequence: without a scheduler change, 70% of the composite score (sentiment,
+attention, velocity) has only ever run on the synthetic dataset from
+`scripts/seed_demo.py`. Treat every score in the dashboard as a demo value until
+a real feed is wired and the pipeline runs end to end.
+
 ## What it answers
 
 1. Which assets are attracting attention?
